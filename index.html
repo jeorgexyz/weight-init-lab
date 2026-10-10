@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weight Init Lab</title>
+<meta name="description" content="Interactive demos of neural network weight initialization: Xavier, He, LeCun and friends. Watch signals and gradients move through a deep network, then race four initializations in training.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="wrap">
+
+<header>
+  <h1>Weight Init Lab</h1>
+  <p class="lede">An interactive guide to neural network weight initialization. Before a neural network learns anything, every weight gets a random number. Pick those numbers badly and the network can't learn at all. This page lets you see why, and how Xavier, He and related schemes fix it.</p>
+</header>
+
+<section class="prose">
+  <h2>Why the first numbers matter</h2>
+  <p>A deep network is a long chain of matrix multiplications with a squashing function between each one. Each layer multiplies its input by a weight matrix, so whatever scale the weights have gets multiplied in again and again. A scale slightly too small and the signal shrinks toward zero by the tenth layer. Slightly too large and it explodes, or slams every tanh unit into its flat ±1 region where nothing can change.</p>
+  <p>The same thing happens in reverse during backpropagation. Gradients travel back through the same weights, so they vanish or explode the same way. When gradients vanish, the early layers stop learning. The goal of a good initialization is simple to state: keep the size of the signal roughly constant from layer to layer, in both directions.</p>
+</section>
+
+<h2>Watch a signal travel through the network</h2>
+<p class="prose">Below, 128 random inputs pass through a deep, fully connected network that has only been initialized, never trained. Each panel shows the distribution of one layer's outputs. The chart underneath tracks the spread of the forward signal and of the backward gradient at every layer.</p>
+
+<div class="lab" id="lab1">
+  <div class="controls">
+    <label>Initialization<select id="l1-init"></select></label>
+    <label>Activation<select id="l1-act"></select></label>
+    <label>Depth <span><input type="range" id="l1-depth" min="2" max="24" value="10"> <span class="rangeval" id="l1-depth-o">10</span></span></label>
+    <label>Width<select id="l1-width"><option value="32">32 units</option><option value="64">64 units</option><option value="128" selected>128 units</option><option value="256">256 units</option></select></label>
+    <button id="l1-resample" type="button">Resample weights</button>
+  </div>
+  <div class="presets"><span>Try:</span>
+    <button type="button" data-p="small,tanh">tanh with tiny weights</button>
+    <button type="button" data-p="large,tanh">tanh with σ = 1</button>
+    <button type="button" data-p="xavierN,tanh">tanh with Xavier</button>
+    <button type="button" data-p="xavierN,relu">ReLU with Xavier</button>
+    <button type="button" data-p="he,relu">ReLU with He</button>
+    <button type="button" data-p="zeros,tanh">all zeros</button>
+  </div>
+  <div class="strip" id="l1-strip"></div>
+  <canvas class="chart" id="l1-chart" role="img" aria-label="Line chart of forward signal spread and backward gradient spread at each layer"></canvas>
+  <div class="legend">
+    <span><span class="sw" style="background:var(--act)"></span>Forward signal spread (std of activations)</span>
+    <span><span class="sw" style="background:var(--grad)"></span>Backward gradient spread (std of ∂L/∂activation)</span>
+  </div>
+  <p class="insight" id="l1-insight"></p>
+</div>
+
+<section>
+  <h2>Where the formulas come from</h2>
+  <div class="prose">
+  <p>The derivation behind Xavier initialization is short enough to follow in four steps. Take one layer that computes <span class="m">z = Wx</span>, where each output sums over <span class="m">n</span><sub>in</sub> inputs.</p>
+  </div>
+  <ol class="steps">
+    <li><p>Assume the weights and inputs are independent, with mean zero. The variance of a product of independent zero-mean variables is the product of their variances, and variances add over a sum. So each output's variance is:</p>
+      <div class="eq">Var(z) = n<sub>in</sub> · Var(w) · Var(x)</div></li>
+    <li><p>For the signal to keep its size going forward, we need <span class="m">Var(z) = Var(x)</span>, which means:</p>
+      <div class="eq">Var(w) = 1 / n<sub>in</sub> <span class="why">LeCun initialization, from 1998</span></div></li>
+    <li><p>Run the same argument backward. The gradient reaching each input is a sum over <span class="m">n</span><sub>out</sub> outputs, so keeping gradients steady requires <span class="m">Var(w) = 1 / n</span><sub>out</sub>. Unless the layer is square you can't satisfy both, so Glorot and Bengio (2010) took the average:</p>
+      <div class="eq">Var(w) = 2 / (n<sub>in</sub> + n<sub>out</sub>) <span class="why">Xavier / Glorot. For a uniform U(−a, a), a = √(6 / (n<sub>in</sub> + n<sub>out</sub>))</span></div></li>
+    <li><p>This analysis treats the activation as roughly linear near zero, which holds for tanh. ReLU breaks it: it zeroes out half of its inputs, so it throws away half the signal's energy at every layer. He et al. (2015) doubled the variance to compensate:</p>
+      <div class="eq">Var(w) = 2 / n<sub>in</sub> <span class="why">He / Kaiming initialization, for ReLU</span></div></li>
+  </ol>
+  <p class="prose">Sigmoid is the awkward one. Its outputs are centered on 0.5, not zero, and its slope is at most 0.25, so every layer shrinks the gradient by at least a factor of four no matter how the weights are scaled. That is a large part of why deep networks moved away from it.</p>
+</section>
+
+<section>
+  <h2>A field guide to the schemes</h2>
+  <p class="prose">The last column shows the actual weight standard deviation for a square layer at the width selected in the lab above, so you can compare the scales directly.</p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Scheme</th><th>Weight variance</th><th>Built for</th><th>What goes wrong without it</th><th id="tbl-width-h">Std at width 128</th></tr></thead>
+      <tbody id="tbl-body"></tbody>
+    </table>
+  </div>
+</section>
+
+<h2>The training race</h2>
+<p class="prose">Showing the signal at initialization is one thing. This is the payoff: four identical networks, differing only in how their weights start, trained side by side on the same data with the same mini-batches. Each lane shows the decision boundary as it forms, and a strip of bars for the gradient size at each layer, from the input layer on the left to the output on the right.</p>
+
+<div class="lab" id="lab2">
+  <div class="controls">
+    <label>Dataset<select id="r-data"><option value="spiral" selected>Two spirals</option><option value="circles">Rings</option><option value="xor">XOR quadrants</option></select></label>
+    <label>Activation<select id="r-act"><option value="relu" selected>ReLU</option><option value="tanh">tanh</option><option value="sigmoid">sigmoid</option></select></label>
+    <label>Hidden layers <span><input type="range" id="r-depth" min="2" max="10" value="6"> <span class="rangeval" id="r-depth-o">6</span></span></label>
+    <label>Learning rate <span><input type="range" id="r-lr" min="0" max="6" value="3" step="1"> <span class="rangeval" id="r-lr-o">0.1</span></span></label>
+  </div>
+  <div class="runbar">
+    <button class="primary" id="r-run" type="button">Start training</button>
+    <button id="r-reset" type="button">Reset</button>
+    <span class="stepcount" id="r-step">Step 0 of 4000</span>
+  </div>
+  <div class="lanes" id="lanes"></div>
+  <canvas class="chart" id="r-loss" style="margin-top:14px" role="img" aria-label="Training loss over time for each network"></canvas>
+  <div class="legend" id="r-legend"></div>
+  <p class="insight" id="r-insight">Press start. Every network gets the same data, the same mini-batches and the same underlying random draws; only the scale of the starting weights differs. The dashed line marks a loss of ln 2 ≈ 0.693, which is what a network scores when it just guesses 50/50.</p>
+</div>
+
+<section class="takeaways">
+  <h2>What to take away</h2>
+  <p>Initialization is about variance, not about the particular random values. Keep each layer's output variance close to its input variance, forward and backward, and a deep network starts in a place where gradients can reach every layer.</p>
+  <p>Match the scheme to the activation: Xavier for tanh and other functions that look linear near zero, He for ReLU and its relatives. Modern tools like batch normalization, layer normalization and residual connections make networks far more forgiving, but they all lean on the same idea, and a bad starting scale can still waste hours of training.</p>
+</section>
+
+<footer>
+  <p>Sources: LeCun, Bottou, Orr and Müller, “Efficient BackProp” (1998). Glorot and Bengio, “Understanding the difficulty of training deep feedforward neural networks” (AISTATS 2010). He, Zhang, Ren and Sun, “Delving Deep into Rectifiers” (ICCV 2015). Every simulation on this page runs in your browser with a seeded random generator, so results are repeatable.</p>
+</footer>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
