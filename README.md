@@ -1,5 +1,12 @@
 # Weight Init Lab
 
+[![Live demo](https://img.shields.io/badge/demo-live-0067c0)](https://jeorgexyz.github.io/weight-init-lab/)
+[![License: MIT](https://img.shields.io/github/license/jeorgexyz/weight-init-lab)](LICENSE)
+[![Last commit](https://img.shields.io/github/last-commit/jeorgexyz/weight-init-lab)](https://github.com/jeorgexyz/weight-init-lab/commits/main)
+![No dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)
+
+**Live demo: https://jeorgexyz.github.io/weight-init-lab/**
+
 Interactive, in-browser demos of neural network weight initialization. No build step, no dependencies.
 
 - **Signal propagation:** push random inputs through a deep, untrained network and watch the forward signal and backward gradient grow, shrink or hold steady under zeros, tiny/large normal, LeCun, Xavier and He initialization, with tanh, ReLU, sigmoid or linear activations.
