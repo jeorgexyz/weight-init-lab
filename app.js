@@ -160,11 +160,33 @@ function insightFor(res){
   return{cls,text:parts.join(' ')};
 }
 
+/* The simulation runs in a Web Worker so big networks don't freeze the page.
+   The worker source is assembled from the functions above; if workers are
+   unavailable (some file:// setups) it falls back to the main thread. */
+let l1Worker=null,l1Job=0;
+const NL=String.fromCharCode(10);
+function getWorker(){
+  if(l1Worker!==null)return l1Worker||null;
+  try{
+    const fnTable=(o,keys)=>'{'+Object.keys(o).map(k=>k+':{'+keys.map(p=>p+':'+o[k][p].toString()).join(',')+'}').join(',')+'}';
+    const src=[mulberry32,makeGauss,std,simulate].map(f=>f.toString()).join(NL)+
+      NL+'const INITS='+fnTable(INITS,['fn'])+';'+NL+'const ACTS='+fnTable(ACTS,['f','d'])+';'+
+      NL+'onmessage=e=>{const[id,...a]=e.data;const r=simulate(...a);postMessage({id,r},r.As.map(x=>x.buffer));};';
+    l1Worker=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
+    l1Worker.onmessage=e=>{if(e.data.id!==l1Job)return;finishLab1(e.data.r);};
+    l1Worker.onerror=()=>{l1Worker=false;runLab1();};
+  }catch(err){l1Worker=false;}
+  return l1Worker||null;
+}
+function finishLab1(res){
+  l1Result=res;$('lab1').removeAttribute('aria-busy');renderLab1();updateTable(res.width);
+}
 function runLab1(){
   const depth=+$('l1-depth').value,width=+$('l1-width').value;
   $('l1-depth-o').textContent=depth;
-  const res=simulate(l1Init.value,l1Act.value,depth,width,l1Seed);
-  l1Result=res;renderLab1();updateTable(width);
+  const args=[l1Init.value,l1Act.value,depth,width,l1Seed],w=getWorker();
+  if(w){$('lab1').setAttribute('aria-busy','true');w.postMessage([++l1Job,...args]);}
+  else finishLab1(simulate(...args));
 }
 function renderLab1(){
   const res=l1Result;if(!res)return;
@@ -416,6 +438,20 @@ window.addEventListener('resize',()=>{clearTimeout(rzTimer);rzTimer=setTimeout((
 try{window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{renderLab1();renderRace();});}catch(e){}
 new MutationObserver(()=>{renderLab1();renderRace();}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 
-function start(){runLab1();resetRace();}
+/* ---------- Remember settings between visits ---------- */
+const SAVE_KEY='weight-init-lab:v1';
+const saved=[['l1-init',l1Init],['l1-act',l1Act],['l1-depth',$('l1-depth')],['l1-width',$('l1-width')],
+  ['r-data',$('r-data')],['r-act',$('r-act')],['r-depth',$('r-depth')],['r-lr',$('r-lr')],
+  ...laneUI.map((u,i)=>['lane'+i,u.sel])];
+function loadSettings(){
+  try{const d=JSON.parse(localStorage.getItem(SAVE_KEY)||'{}');
+    saved.forEach(([k,el])=>{if(d[k]!==undefined&&[...(el.options||[1])].some(o=>o===1||o.value===d[k]))el.value=d[k];});
+    $('r-depth-o').textContent=$('r-depth').value;$('r-lr-o').textContent=LR_STEPS[+$('r-lr').value];
+  }catch(e){}
+}
+function saveSettings(){try{const d={};saved.forEach(([k,el])=>d[k]=el.value);localStorage.setItem(SAVE_KEY,JSON.stringify(d));}catch(e){}}
+document.addEventListener('change',saveSettings);document.addEventListener('input',saveSettings);
+
+function start(){loadSettings();runLab1();resetRace();}
 if(document.fonts&&document.fonts.ready){document.fonts.ready.then(start).catch(start);}else start();
 })();

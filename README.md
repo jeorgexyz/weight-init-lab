@@ -22,3 +22,7 @@ python -m http.server
 - LeCun, Bottou, Orr, Müller. *Efficient BackProp* (1998)
 - Glorot, Bengio. *Understanding the difficulty of training deep feedforward neural networks* (AISTATS 2010)
 - He, Zhang, Ren, Sun. *Delving Deep into Rectifiers* (ICCV 2015)
+
+## License
+
+MIT. See [LICENSE](LICENSE).
